@@ -844,27 +844,33 @@ impl GlobalState {
                     }
                     flycheck::Progress::DidCheckCrate(target) => (Progress::Report, Some(target)),
                     flycheck::Progress::DidCancel => {
-                        self.last_flycheck_error = None;
-                        // We do not clear
+                        // We do not clear old diagnostics because either we
+                        // already have received new ones and we want to keep
+                        // those or we still have the ones from the previous run
+                        // and we have nothing to replace them with.
                         self.flycheck_status.insert(id, FlycheckStatus::Finished);
                         (Progress::End, None)
                     }
                     flycheck::Progress::DidFailToRestart(err) => {
-                        self.last_flycheck_error =
-                            Some(format!("cargo check failed to start: {err}"));
-                        self.flycheck_status.insert(id, FlycheckStatus::Finished);
+                        self.flycheck_status.insert(
+                            id,
+                            FlycheckStatus::Errored(format!("cargo check failed to start: {err}")),
+                        );
                         return;
                     }
                     flycheck::Progress::DidFinish(result) => {
-                        self.last_flycheck_error =
-                            result.err().map(|err| format!("cargo check failed to start: {err}"));
                         let flycheck_status =
                             self.flycheck_status.entry(id).or_insert(FlycheckStatus::Unknown);
 
                         if !flycheck_status.should_clear_old_diagnostics() {
                             self.diagnostics.clear_check(id);
                         }
-                        *flycheck_status = FlycheckStatus::Finished;
+                        *flycheck_status =
+                            result.map(|()| FlycheckStatus::Finished).unwrap_or_else(|err| {
+                                FlycheckStatus::Errored(format!(
+                                    "cargo check failed to start: {err}"
+                                ))
+                            });
                         (Progress::End, None)
                     }
                 };

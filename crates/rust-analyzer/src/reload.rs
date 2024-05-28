@@ -32,7 +32,7 @@ use vfs::{AbsPath, AbsPathBuf, ChangeKind};
 
 use crate::{
     config::{Config, FilesWatcher, LinkedProject},
-    global_state::GlobalState,
+    global_state::{FlycheckStatus, GlobalState},
     lsp_ext,
     main_loop::Task,
     op_queue::Cause,
@@ -129,7 +129,13 @@ impl GlobalState {
             status.health |= lsp_ext::Health::Warning;
             format_to!(message, "{err}\n");
         }
-        if let Some(err) = &self.last_flycheck_error {
+        for err in self.flycheck_status.values().filter_map(|status| {
+            if let FlycheckStatus::Errored(err) = status {
+                Some(err)
+            } else {
+                None
+            }
+        }) {
             status.health |= lsp_ext::Health::Warning;
             message.push_str(err);
             message.push('\n');

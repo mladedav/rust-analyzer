@@ -86,7 +86,6 @@ pub(crate) struct GlobalState {
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
     pub(crate) flycheck_sender: Sender<flycheck::Message>,
     pub(crate) flycheck_receiver: Receiver<flycheck::Message>,
-    pub(crate) last_flycheck_error: Option<String>,
     pub(crate) flycheck_status: FxHashMap<usize, FlycheckStatus>,
 
     // Test explorer
@@ -172,6 +171,7 @@ pub(crate) enum FlycheckStatus {
     Started,
     DiagnosticReceived,
     Finished,
+    Errored(String),
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
@@ -232,7 +232,6 @@ impl GlobalState {
             flycheck: Arc::from_iter([]),
             flycheck_sender,
             flycheck_receiver,
-            last_flycheck_error: None,
             flycheck_status: FxHashMap::default(),
 
             test_run_session: None,
@@ -526,7 +525,9 @@ impl FlycheckStatus {
     pub(crate) fn should_clear_old_diagnostics(&self) -> bool {
         match self {
             FlycheckStatus::Unknown | FlycheckStatus::Started => false,
-            FlycheckStatus::DiagnosticReceived | FlycheckStatus::Finished => true,
+            FlycheckStatus::DiagnosticReceived
+            | FlycheckStatus::Finished
+            | FlycheckStatus::Errored(_) => true,
         }
     }
 }
